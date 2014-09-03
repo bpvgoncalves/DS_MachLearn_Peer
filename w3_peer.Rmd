@@ -1,2 +1,24 @@
 # Machine Learning (Course Project)
 **Data Science -> Practical Machine Learning -> Peer Assessment**  
+<br><br>  
+
+```{r Setup, echo=FALSE, results='hide'}
+# Setup
+require(knitr)
+require(tools)
+opts_chunk$set(echo=FALSE, results="markup")
+opts_knit$set(verbose=TRUE)
+```
+
+-------------------
+### Executive Summary  
+
+
+
+
+
+
+-------------------
+### References
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. _Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13)_ . Stuttgart, Germany: ACM SIGCHI, 2013.
