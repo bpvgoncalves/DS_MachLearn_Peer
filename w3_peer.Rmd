@@ -14,6 +14,68 @@ opts_knit$set(verbose=TRUE)
 ### Executive Summary  
 
 
+-------------------
+### Data Loading, Preprocessing and Exploratory Analysis   
+
+We'll start by downloading the training and testing cases from the given assignment URLs. Once we make sure we have the right files, they are loaded into memory.
+
+```{r Loading}
+# Loading
+kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+kFile   <- "train.csv"
+kMd5    <- "56926c78af383dcdc2060407942e52e9"
+    
+if (!file.exists(kFile)){
+    # File is not present at the working directory. Lets download it!
+    method <-"auto"  # Default method: shall be fine for MS Windows (untested!)
+    if (.Platform$OS.type=="unix") method <- "curl"  # Use for unix-like systems
+    download.file(kRemote, kFile, method, FALSE, "wb")
+}
+
+if (!file.exists(kFile)){
+    stop("Download failed!")
+} else {
+    # File is now present (it was before or it was sucessfully downloaded).
+    # Lets check if it is the expected file and no curruption ocurred during 
+    # download. I'll compare it's MD5 hash with a precomputed one.
+    if (as.vector(md5sum(kFile))!=kMd5){
+        stop("File is not correct!")
+    } else {
+        # The correct file shall be present. 
+        trainData <- read.csv(kFile, stringsAsFactors=FALSE)
+        #print("Training Data sucessfully loaded!")
+    }
+}
+
+kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+kFile   <- "test.csv"
+kMd5    <- "bc4174f3ec5dfcc5c570a1d2709272d9"
+
+if (!file.exists(kFile)){
+    method <-"auto"
+    if (.Platform$OS.type=="unix") method <- "curl"
+    download.file(kRemote, kFile, method, FALSE, "wb")
+}
+
+if (!file.exists(kFile)){
+    stop("Download failed!")
+} else {
+    if (as.vector(md5sum(kFile))!=kMd5){
+        stop("File is not correct!")
+    } else {
+        testData <- read.csv(kFile, stringsAsFactors=FALSE)
+        #print("Testing Data sucessfully loaded!")
+    }
+}
+rm(kRemote, kFile, kMd5)
+
+cat("Training dataset:", dim(trainData), "\nTesting dataset:", dim(testData))
+
+#Preprocessing
+
+```
+
+There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases. We'll keep the test cases apart until the prediction phase, later in this document. 
 
 
 
