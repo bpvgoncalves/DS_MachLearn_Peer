@@ -6,8 +6,10 @@
 # Setup
 require(knitr)
 require(tools)
+require(caret)
 opts_chunk$set(echo=FALSE, results="markup")
 opts_knit$set(verbose=TRUE)
+set.seed(0)
 ```
 
 -------------------
@@ -75,7 +77,8 @@ cat("Training dataset:", dim(trainData), "\nTesting dataset:", dim(testData))
 
 ```
 
-There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases. We'll keep the test cases apart until the prediction phase, later in this document. 
+There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases to be submited. We'll keep the test cases apart until the prediction phase, later in this document. 
+
 
 
 
