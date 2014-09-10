@@ -7,6 +7,7 @@
 require(knitr)
 require(tools)
 require(caret)
+if (.Platform$OS.type=="unix") require(doMC)
 opts_chunk$set(echo=FALSE, results="markup")
 opts_knit$set(verbose=TRUE)
 set.seed(0)
@@ -90,7 +91,7 @@ rm(trainData, testData)
 The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 60% of the samples will be used for training, and then 20% for each of testing and validation sets.
 
 ```{r DatasetSpliting}
-trn_rows <- createDataPartition(trainClean$classe, p=0.60, list=FALSE)
+trn_rows <- createDataPartition(trainClean$classe, p=0.10, list=FALSE)
 trainSet <- trainClean[trn_rows, ]
 tmpSet <- trainClean[-trn_rows, ]
 tst_rows <- createDataPartition(tmpSet$classe, p=0.50, list=FALSE)
@@ -104,6 +105,35 @@ cat("Training set:", dim(trainSet),
     "\nValidation set:", dim(validSet))
 
 ```
+
+-------------------
+### Models Fitting
+
+```{r ModelFitting}
+
+
+if (.Platform$OS.type=="unix") registerDoMC(cores=2)
+fit1 <- train(classe~., 
+              method="knn", 
+              preProcess=c("center", "scale"), 
+              trControl = trainControl(method="cv"),
+              data=trainSet[, 8:60]
+             )
+fit2 <- train(classe~., 
+              method="rf", 
+              data=trainSet[, 8:60], 
+              preProcess=c("center", "scale"), 
+              trControl = trainControl(method="cv"),
+              ntree=250
+             )
+
+p1 <- predict(fit1, testSet)
+p2 <- predict(fit2, testSet)
+
+confusionMatrix(testSet$classe, p1)
+confusionMatrix(testSet$classe, p2)
+```
+
 
 
 -------------------
