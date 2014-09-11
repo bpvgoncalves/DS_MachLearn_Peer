@@ -7,10 +7,14 @@
 require(knitr)
 require(tools)
 require(caret)
-if (.Platform$OS.type=="unix") require(doMC)
+require(randomForest)
+require(ipred)
+require(plyr)
+#this will allow parallel processing on model fitting on unix-based OS's.
+if (.Platform$OS.type=="unix") require(doMC) 
 opts_chunk$set(echo=FALSE, results="markup")
 opts_knit$set(verbose=TRUE)
-set.seed(0)
+set.seed(112358) # the single digit numbers of Fibonacci sequence!
 ```
 
 -------------------
@@ -81,17 +85,18 @@ trainClean$classe <- factor(trainClean$classe)
 
 ```
 
-There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases to be submited. We'll keep the test cases apart until the prediction phase, later in this document. 
+There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases to be submitted. We'll keep the test cases apart until the prediction phase, later in this document. 
 After some data cleanup to remove columns mostly with empty or NA records, we end up with only `r dim(trainClean)[2]` variables with the previous number of records. Each record belongs to one (and only one) `Classe` named from A to E, with the following distribution:
 ```{r ClasseSummary} 
 summary(trainClean$classe)
 rm(trainData, testData)
 ```
 
-The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 60% of the samples will be used for training, and then 20% for each of testing and validation sets.
+The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 40% of the samples will be used for training, and 30% for each of testing and validation sets.  
+While this might look sub optimal and not complaint with recommended 60-40 distribution for training and testing, we will use the testing set to fit our third model and we chose to have more cases there.
 
 ```{r DatasetSpliting}
-trn_rows <- createDataPartition(trainClean$classe, p=0.10, list=FALSE)
+trn_rows <- createDataPartition(trainClean$classe, p=0.40, list=FALSE)
 trainSet <- trainClean[trn_rows, ]
 tmpSet <- trainClean[-trn_rows, ]
 tst_rows <- createDataPartition(tmpSet$classe, p=0.50, list=FALSE)
@@ -106,8 +111,15 @@ cat("Training set:", dim(trainSet),
 
 ```
 
+
+-------------------
+### Model Selection
+
+
 -------------------
 ### Models Fitting
+
+
 
 ```{r ModelFitting}
 
@@ -130,11 +142,50 @@ fit2 <- train(classe~.,
 p1 <- predict(fit1, testSet)
 p2 <- predict(fit2, testSet)
 
-confusionMatrix(testSet$classe, p1)
-confusionMatrix(testSet$classe, p2)
+confusionMatrix(p1, testSet$classe)
+confusionMatrix(p2, testSet$classe)
 ```
 
 
+```{r ModelCombination}
+
+trainSetComb <- data.frame(target=testSet$classe, f1=p1, f2=p2)
+
+fitComb <- train(target~f1+f2,
+                 method="treebag", 
+                 trControl = trainControl(method="cv"),
+                 data=trainSetComb 
+                )
+
+validSetEstim <- data.frame(f1=predict(fit1, validSet),
+                            f2=predict(fit2, validSet))
+pComb <- predict(fitComb, validSetEstim)
+confusionMatrix(pComb, validSet$classe)
+
+```
+
+
+```{r SubmissionSet}
+
+write_files <- function(response)
+    n = length(response)
+    for(i in 1:n){
+        filename <- paste0("./quizFiles/problem_id_",i,".txt")
+        write.table(response[i], 
+                    file=filename, 
+                    quote=FALSE, 
+                    row.names=FALSE, 
+                    col.names=FALSE)
+    }
+}
+
+quizSet <- data.frame(f1=predict(fit1, quizClean),
+                      f2=predict(fit2, quizClean))
+pQuiz <- predict(fitComb, quizSet)
+write_files(pQuiz)
+pQuiz
+summary(pQuiz)
+```
 
 -------------------
 ### References
