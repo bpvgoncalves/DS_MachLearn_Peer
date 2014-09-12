@@ -29,7 +29,7 @@ We'll start by downloading the training and testing cases from the given assignm
 ```{r Loading}
 # Loading
 kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-kFile   <- "train.csv"
+kFile   <- "data/train.csv"
 kMd5    <- "56926c78af383dcdc2060407942e52e9"
     
 if (!file.exists(kFile)){
@@ -55,7 +55,7 @@ if (!file.exists(kFile)){
 }
 
 kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-kFile   <- "test.csv"
+kFile   <- "data/test.csv"
 kMd5    <- "bc4174f3ec5dfcc5c570a1d2709272d9"
 
 if (!file.exists(kFile)){
