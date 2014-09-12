@@ -2,14 +2,14 @@
 **Data Science -> Practical Machine Learning -> Peer Assessment**  
 <br><br>  
 
-```{r Setup, echo=FALSE, results='hide'}
+```{r Setup, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
 # Setup
+startTime <- Sys.time()
 require(knitr)
 require(tools)
 require(caret)
 require(randomForest)
-require(ipred)
-require(plyr)
+require(kernlab)
 #this will allow parallel processing on model fitting on unix-based OS's.
 if (.Platform$OS.type=="unix") require(doMC) 
 opts_chunk$set(echo=FALSE, results="markup")
@@ -76,7 +76,7 @@ if (!file.exists(kFile)){
 }
 rm(kRemote, kFile, kMd5)
 
-cat("Training dataset:", dim(trainData), "\nTesting dataset:", dim(testData))
+cat("Training data:", dim(trainData), "\nTesting data:", dim(testData))
 
 #Preprocessing
 trainClean <- trainData[, -c(12:36,50:59,69:83,87:101,103:112,125:139,141:150)]
@@ -121,21 +121,21 @@ cat("Training set:", dim(trainSet),
 
 
 
-```{r ModelFitting}
+```{r ModelFitting, cache=TRUE}
 
 
 if (.Platform$OS.type=="unix") registerDoMC(cores=2)
 fit1 <- train(classe~., 
               method="knn", 
               preProcess=c("center", "scale"), 
-              trControl = trainControl(method="cv"),
+              trControl = trainControl(method="cv", number=15),
               data=trainSet[, 8:60]
              )
 fit2 <- train(classe~., 
               method="rf", 
               data=trainSet[, 8:60], 
               preProcess=c("center", "scale"), 
-              trControl = trainControl(method="cv"),
+              trControl = trainControl(method="cv", number=15),
               ntree=250
              )
 
@@ -147,13 +147,13 @@ confusionMatrix(p2, testSet$classe)
 ```
 
 
-```{r ModelCombination}
+```{r ModelCombination, cache=TRUE}
 
-trainSetComb <- data.frame(target=testSet$classe, f1=p1, f2=p2)
+trainSetComb <- data.frame(target=testSet$classe, f1=factor(p1), f2=factor(p2))
 
 fitComb <- train(target~f1+f2,
-                 method="treebag", 
-                 trControl = trainControl(method="cv"),
+                 method="svmLinear", 
+                 trControl = trainControl(method="cv", number=15),
                  data=trainSetComb 
                 )
 
@@ -167,7 +167,7 @@ confusionMatrix(pComb, validSet$classe)
 
 ```{r SubmissionSet}
 
-write_files <- function(response)
+write_files <- function(response){
     n = length(response)
     for(i in 1:n){
         filename <- paste0("./quizFiles/problem_id_",i,".txt")
@@ -183,9 +183,48 @@ quizSet <- data.frame(f1=predict(fit1, quizClean),
                       f2=predict(fit2, quizClean))
 pQuiz <- predict(fitComb, quizSet)
 write_files(pQuiz)
-pQuiz
-summary(pQuiz)
+
+#summary(pQuiz)
+# [1] B A B A A E D B A A B C B A E E A B B B
+# Levels: A B C D E
 ```
+
+``` {r ModelCompare}
+
+rsamples <- resamples(list(KNearNbour=fit1, RndForest=fit2, Combined=fitComb))
+summary(rsamples)
+```
+
+
+-------------------
+### Reproducibility
+
+This report has been made using R Markdown and the presented results should be fully reproducible. The following software environment has been used: 
+- OS: Linux x86_64 (3.15.9-pclos1)
+- R: 3.1.1
+- RStudio: 0.98.481
+- R packages: 
+  - knitr (1.6)
+  - tools (3.1.1)
+  - caret (6.0-35):
+      - lattice(0.20-29)
+      - ggplot2 (1.0.0)
+      - kernlab (0.9-19)
+      - randomForest (4.6-10)
+  - doMC (1.3.3):
+      - foreach (1.4.2)
+      - iterators (1.0.7)
+      - parallel (3.1.1)
+
+```{r Final}
+endTime <- Sys.time()
+minutes <- difftime(endTime, startTime,units="mins")
+seconds <- (minutes-trunc(minutes))*60
+cat("Report generated on:", format(endTime, "%Y-%m-%d %H:%M:%S %Z"),
+    "\nProcessing time:", trunc(minutes), "minutes and", round(seconds, 0), "seconds.")
+```
+
+All the code used to produce this report is available on [Github](https://github.com/bpvg/DS_MachLearn_Peer).
 
 -------------------
 ### References
