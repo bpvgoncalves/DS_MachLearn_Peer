@@ -10,6 +10,7 @@ require(tools)
 require(caret)
 require(randomForest)
 require(kernlab)
+require(MASS)
 #this will allow parallel processing on model fitting on unix-based OS's.
 if (.Platform$OS.type=="unix") require(doMC) 
 opts_chunk$set(echo=FALSE, results="markup")
@@ -20,15 +21,21 @@ set.seed(112358) # the single digit numbers of Fibonacci sequence!
 -------------------
 ### Executive Summary  
 
+Executive summary goes here!  
+<br>
 
 -------------------
 ### The problem
 
+The main purpose of this work is trying to answer the question about the possibility to use data collected by sensors included in user wearable devices to assess whether or not the user is preforming a given physical activity in a correct way or, on the other hand, if the user is preforming it wrongly (with potential negative health impacts, such as lesions).  
+As original authors said (Velloso et al, 2013), this is not the traditional activity recognition work which tries to identify **which** activity the user is preforming, but a more complex analysis trying to identify **how** a given activity is being preformed.  
+<br>
 
 -------------------
-### Data Loading, Preprocessing and Exploratory Analysis   
+### The Data: Loading, Preprocessing and Exploratory Analysis   
 
-We'll start by downloading the training and testing cases from the given assignment URLs. Once we make sure we have the right files, they are loaded into memory.
+We will use the data provided by _Qualitative Activity recognition of Weight Lifting Exercices_ team (Velloso et al, 2013), which includes the data collected by sensors worn by 6 different users while preforming weight lifting exercises in a controlled environment, either preforming the activity correctly or making one of four common mistakes. Data is then labeled accordingly as **A** (no execution errors) or **B** to **E** (for each of the execution errors being tested).
+As a first step we will start by downloading the training and submission cases from the given assignment URLs. Once we make sure we have the right files by comparing their MD5 hash with a pre-computed one, they are loaded into memory.
 
 ```{r Loading}
 # Loading
@@ -90,14 +97,14 @@ trainClean$classe <- factor(trainClean$classe)
 ```
 
 There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases to be submitted. We'll keep the test cases apart until the prediction phase, later in this document. 
-After some data cleanup to remove columns mostly with empty or NA records, we end up with only `r dim(trainClean)[2]` variables with the previous number of records. Each record belongs to one (and only one) `Classe` named from A to E, with the following distribution:
+After some data cleanup to remove columns mostly with empty or NA records, we end up with only `r dim(trainClean)[2]` variables with the previous number of records. Each record belongs to one (and only one) `Classe` named from A to E, with the distribution below.
 ```{r ClasseSummary} 
 summary(trainClean$classe)
 rm(trainData, testData)
 ```
 
 The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 40% of the samples will be used for training, and 30% for each of testing and validation sets.  
-While this might look sub optimal and not complaint with recommended 60-40 distribution for training and testing, we will use the testing set to fit our third model and we chose to have more cases there.
+While this might look sub optimal and not complaint with recommended 60-40 distribution for training and testing, we will use the testing set to fit our third model, so we chose to have more cases there.
 
 ```{r DatasetSpliting}
 trn_rows <- createDataPartition(trainClean$classe, p=0.40, list=FALSE)
@@ -115,10 +122,25 @@ cat("Training set:", dim(trainSet),
 
 ```
 
+Looking into the variables' names present at the training set it is clear that some of them (X, user.name, raw.timestamp.part.1, ...) are not related to the data collected by the devices and only provide information about the record itself, such as exercise execution time or user name. Excluding those variables (first 7 columns) and the variable we want to predict (last column), leaves us with 52 potential predictor variables. 
+
+We can also wonder if all those are really necessary. Using Principal Component Analysis to extract the main features from the dataset suggests that we can capture about 95% of data variability using 26 components (half the initial number of variables).
+
+``` {r Feature Extraction}
+#Feature Extraction
+prePCA <- preProcess(trainSet[, 8:59], "pca")
+prePCA
+```
+
+In spite of this potential noise reduction and model simplification, during the exploratory analysis we noticed an important decrease in models' accuracy when using PCA so we will not preform this transformation to the data before fitting the models and we will therefore keep the 52 variables.  
+<br>
 
 -------------------
 ### Model Selection
 
+Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regresion) are automaticly excluded on our selection process.  
+CONTINUE HERE...
+<br>
 
 -------------------
 ### Models Fitting
@@ -215,6 +237,7 @@ rsamples <- resamples(list(KNearNbour=fit1, RndForest=fit2,
 summary(rsamples)
 ```
 
+<br>
 
 -------------------
 ### Reproducibility
@@ -231,6 +254,7 @@ This report has been made using R Markdown and the presented results should be f
       - ggplot2 (1.0.0)
       - kernlab (0.9-19)
       - randomForest (4.6-10)
+      - MASS (7.3-33)
   - doMC (1.3.3):
       - foreach (1.4.2)
       - iterators (1.0.7)
@@ -244,9 +268,16 @@ cat("Report generated on:", format(endTime, "%Y-%m-%d %H:%M:%S %Z"),
     "\nProcessing time:", trunc(minutes), "minutes and", round(seconds, 0), "seconds.")
 ```
 
-All the code used to produce this report is available on [Github](https://github.com/bpvg/DS_MachLearn_Peer).
+All the code used to produce this report is available on [Github](https://github.com/bpvg/DS_MachLearn_Peer).  
+<br>
 
 -------------------
 ### References
 
-Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. _Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13)_ . Stuttgart, Germany: ACM SIGCHI, 2013.
+Filzmoser, Peter _Linear and Nonlinear Methods for Regression and Classification and applications in R_. Vienna University of Technology, 2008  
+
+Hastie, Trevor; Tibshirani, Robert; Friedman, Jerome _The Elements of Statistical Learning_. Springer, 2008  
+
+Shalizi, Cosma R. _Advanced Data Analysis from an Elementary Point of View_. Carnegie Mellon University, 2013  
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. _Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13)_ . Stuttgart, Germany: ACM SIGCHI, 2013.  
