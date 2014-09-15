@@ -22,6 +22,10 @@ set.seed(112358) # the single digit numbers of Fibonacci sequence!
 
 
 -------------------
+### The problem
+
+
+-------------------
 ### Data Loading, Preprocessing and Exploratory Analysis   
 
 We'll start by downloading the training and testing cases from the given assignment URLs. Once we make sure we have the right files, they are loaded into memory.
@@ -124,44 +128,58 @@ cat("Training set:", dim(trainSet),
 ```{r ModelFitting, cache=TRUE}
 
 
-if (.Platform$OS.type=="unix") registerDoMC(cores=2)
+if (.Platform$OS.type=="unix") registerDoMC(cores=4)
+
+# **TODO**
+# Fix RNG seeds for reproducibility on multicore processing
+# **
+
 fit1 <- train(classe~., 
-              method="knn", 
-              preProcess=c("center", "scale"), 
-              trControl = trainControl(method="cv", number=15),
-              data=trainSet[, 8:60]
+              method     = "knn", 
+              data       = trainSet[, 8:60], 
+              preProcess = c("center", "scale"), 
+              trControl  = trainControl(method="cv", number=16)
              )
 fit2 <- train(classe~., 
-              method="rf", 
-              data=trainSet[, 8:60], 
-              preProcess=c("center", "scale"), 
-              trControl = trainControl(method="cv", number=15),
-              ntree=250
+              method     = "rf", 
+              data       = trainSet[, 8:60], 
+              preProcess = c("center", "scale"), 
+              trControl  = trainControl(method="cv", number=16),
+              ntree      = 128
+             )
+fit3 <- train(classe~., 
+              method     = "qda", 
+              data       = trainSet[, 8:60], 
+              preProcess = c("center", "scale"), 
+              trControl  = trainControl(method="cv", number=16)
              )
 
 p1 <- predict(fit1, testSet)
 p2 <- predict(fit2, testSet)
+p3 <- predict(fit3, testSet)
 
-confusionMatrix(p1, testSet$classe)
-confusionMatrix(p2, testSet$classe)
+cm1 <- confusionMatrix(p1, testSet$classe)
+cm2 <- confusionMatrix(p2, testSet$classe)
+cm3 <- confusionMatrix(p3, testSet$classe)
 ```
 
 
 ```{r ModelCombination, cache=TRUE}
 
-trainSetComb <- data.frame(target=testSet$classe, f1=factor(p1), f2=factor(p2))
+trainSetComb <- data.frame(target=testSet$classe, 
+                           f1=factor(p1), f2=factor(p2), f3=factor(p3))
 
-fitComb <- train(target~f1+f2,
-                 method="svmLinear", 
-                 trControl = trainControl(method="cv", number=15),
-                 data=trainSetComb 
+fitComb <- train(target~f1+f2+f3,
+                 method    = "lda", 
+                 data      = trainSetComb, 
+                 trControl = trainControl(method="cv", number=16)
                 )
 
 validSetEstim <- data.frame(f1=predict(fit1, validSet),
-                            f2=predict(fit2, validSet))
+                            f2=predict(fit2, validSet),
+                            f3=predict(fit3, validSet))
 pComb <- predict(fitComb, validSetEstim)
-confusionMatrix(pComb, validSet$classe)
-
+cmComb <- confusionMatrix(pComb, validSet$classe)
 ```
 
 
@@ -172,26 +190,28 @@ write_files <- function(response){
     for(i in 1:n){
         filename <- paste0("./quizFiles/problem_id_",i,".txt")
         write.table(response[i], 
-                    file=filename, 
-                    quote=FALSE, 
-                    row.names=FALSE, 
-                    col.names=FALSE)
+                    file      = filename, 
+                    quote     = FALSE, 
+                    row.names = FALSE, 
+                    col.names = FALSE)
     }
 }
 
 quizSet <- data.frame(f1=predict(fit1, quizClean),
-                      f2=predict(fit2, quizClean))
+                      f2=predict(fit2, quizClean),
+                      f3=predict(fit3, quizClean))
 pQuiz <- predict(fitComb, quizSet)
 write_files(pQuiz)
 
-#summary(pQuiz)
+pQuiz
 # [1] B A B A A E D B A A B C B A E E A B B B
 # Levels: A B C D E
 ```
 
 ``` {r ModelCompare}
 
-rsamples <- resamples(list(KNearNbour=fit1, RndForest=fit2, Combined=fitComb))
+rsamples <- resamples(list(KNearNbour=fit1, RndForest=fit2, 
+                           QuadDiscAn=fit3, Combined=fitComb))
 summary(rsamples)
 ```
 

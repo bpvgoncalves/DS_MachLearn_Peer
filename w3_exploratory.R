@@ -7,3 +7,8 @@ axis <- names(trainClean)[7:9]
 plot(trainClean[, 8:14])
 cor(trainClean[, 8:14])
 
+
+
+pp <- preProcess(trainSet[, 8:59], "pca")
+pp
+pca <- predict(pp, trainSet[, 8:59])
