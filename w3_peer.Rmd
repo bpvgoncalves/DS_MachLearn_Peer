@@ -138,8 +138,9 @@ In spite of this potential noise reduction and model simplification, during the 
 -------------------
 ### Model Selection
 
-Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regresion) are automaticly excluded on our selection process.  
-CONTINUE HERE...
+Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regression) were automatically excluded on our selection process.  
+Most authors agree it doesn't exist a "best model" for all problems and situations, so we cannot be sure about the best _a priori_ model to use for this problem. We then choose to use three different models to see which one is the best for this task: the **K-Nearest Neighborhood (KNN)** used to classify each observation accordingly to the know classifications of the _k_ nearest observations in the features space, the powerful (yet black-box-styled) **Random Forest (RF)** getting its strength from the ensembling techniques applied to the individual decision trees, and, the **Quadratic Discriminant Analysis (QDA)**, a method similar to linear discriminant analysis which tries to find a combination of features able to identify each class, but where each class space is delimited by a quadratic function instead of a linear function.  
+At the end, the outputs of all three models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here.
 <br>
 
 -------------------
@@ -152,22 +153,31 @@ CONTINUE HERE...
 
 if (.Platform$OS.type=="unix") registerDoMC(cores=4)
 
-# **TODO**
-# Fix RNG seeds for reproducibility on multicore processing
-# **
+# Create a random number list to allow reproducibility while using multicore 
+# processing. Since the computations are preformed in parallel and each run 
+# execution time may be affected by external factors, it is not guaranteed the 
+# RNG state will be the same for script run.
+# We use a vector of seeds to homogenize the seed used on every run.
+
+set.seed(1321345589) # the double digit numbers of Fibonacci sequence!
+s <- vector(mode = "list", length = 17)
+for(i in 1:16) s[[i]] <- sample.int(9999, 5)
+s[[17]] <- sample.int(9999, 1)
 
 fit1 <- train(classe~., 
               method     = "knn", 
               data       = trainSet[, 8:60], 
               preProcess = c("center", "scale"), 
-              trControl  = trainControl(method="cv", number=16)
+              trControl  = trainControl(method="cv", number=16, seeds=s),
+              tuneGrid   = data.frame(k=c(1, 3, 5, 7, 9))
              )
 fit2 <- train(classe~., 
               method     = "rf", 
               data       = trainSet[, 8:60], 
               preProcess = c("center", "scale"), 
-              trControl  = trainControl(method="cv", number=16),
-              ntree      = 128
+              trControl  = trainControl(method="cv", number=16, seeds=s),
+              ntree      = 64, 
+              tuneGrid   = data.frame(mtry=c(2, 4, 8, 16, 32))
              )
 fit3 <- train(classe~., 
               method     = "qda", 
@@ -205,6 +215,16 @@ cmComb <- confusionMatrix(pComb, validSet$classe)
 ```
 
 
+
+
+``` {r ModelCompare}
+rsamples <- resamples(list(KNN=fit1, RF=fit2, QDA=fit3, Comb=fitComb))
+summary(rsamples)$statistics$Accuracy
+```
+
+
+
+
 ```{r SubmissionSet}
 
 write_files <- function(response){
@@ -228,13 +248,6 @@ write_files(pQuiz)
 pQuiz
 # [1] B A B A A E D B A A B C B A E E A B B B
 # Levels: A B C D E
-```
-
-``` {r ModelCompare}
-
-rsamples <- resamples(list(KNearNbour=fit1, RndForest=fit2, 
-                           QuadDiscAn=fit3, Combined=fitComb))
-summary(rsamples)
 ```
 
 <br>
