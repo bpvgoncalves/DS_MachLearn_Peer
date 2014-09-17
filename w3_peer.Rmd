@@ -140,13 +140,13 @@ In spite of this potential noise reduction and model simplification, during the 
 
 Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regression) were automatically excluded on our selection process.  
 Most authors agree it doesn't exist a "best model" for all problems and situations, so we cannot be sure about the best _a priori_ model to use for this problem. We then choose to use three different models to see which one is the best for this task: the **K-Nearest Neighborhood (KNN)** used to classify each observation accordingly to the know classifications of the _k_ nearest observations in the features space, the powerful (yet black-box-styled) **Random Forest (RF)** getting its strength from the ensembling techniques applied to the individual decision trees, and, the **Quadratic Discriminant Analysis (QDA)**, a method similar to linear discriminant analysis which tries to find a combination of features able to identify each class, but where each class space is delimited by a quadratic function instead of a linear function.  
-At the end, the outputs of all three models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here.
+At the end, the outputs of all three models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here.  
 <br>
 
 -------------------
 ### Models Fitting
 
-
+It is now time to start the model fitting process.  
 
 ```{r ModelFitting, cache=TRUE}
 
@@ -156,12 +156,12 @@ if (.Platform$OS.type=="unix") registerDoMC(cores=4)
 # Create a random number list to allow reproducibility while using multicore 
 # processing. Since the computations are preformed in parallel and each run 
 # execution time may be affected by external factors, it is not guaranteed the 
-# RNG state will be the same for script run.
-# We use a vector of seeds to homogenize the seed used on every run.
+# RNG state will be the same for every script run.
+# We use a vector of seeds to homogenize the results on every run.
 
 set.seed(1321345589) # the double digit numbers of Fibonacci sequence!
 s <- vector(mode = "list", length = 17)
-for(i in 1:16) s[[i]] <- sample.int(9999, 5)
+for(i in 1:16) s[[i]] <- sample.int(9999, 5) # pick 5 numbers from 0 to 9999
 s[[17]] <- sample.int(9999, 1)
 
 fit1 <- train(classe~., 
@@ -214,16 +214,44 @@ pComb <- predict(fitComb, validSetEstim)
 cmComb <- confusionMatrix(pComb, validSet$classe)
 ```
 
+#### Parameters
+Models were mostly fitted using their default parameters, but some changes were made to try to getting better accuracy or less processing time.
+Starting with KNN, we tuned the model to check more k neighbors than it will do by default to try to get more Accuracy. In this case, k=1 and k=3 were tested together with the default 5, 7 and 9. According to the results obtained, k=1 provides better Accuracy.  
+As long as the RF is concerned, we reduced the number of trees from the default 500 to 64. This grants faster processing but does not penalize too much the Accuracy. According to our findings during the exploratory phase, marginal Accuracy gains quickly decrease while more trees are added. We found 64 as a good compromise between models Accuracy and processing speed. We also changed the number of variables samples evaluated at each node, checking for 2, 4, 8, 16 and 32 variables instead of the original 2, 27 and 52.  
+Traversal to all models, we can find the pre-processing settings. In all cases variables were centered and scaled.  
 
-
+#### Cross-Validation
+All models were subject to 2 different levels of cross validation.  
+The first level was computed during the fitting process itself. To accomplish this, 16 different random sub-samples were created from the training dataset, using about 75% of the actual number of records for training and 25% for validation. Then the model were fitted on each of these sub-samples and the Accuracy computed. The summary of the results are on the table below.  
 
 ``` {r ModelCompare}
 rsamples <- resamples(list(KNN=fit1, RF=fit2, QDA=fit3, Comb=fitComb))
 summary(rsamples)$statistics$Accuracy
 ```
 
+The second level of cross-validation is preformed using the fitted models to predict the (known) class for the 'Testing Set' records and compare the prediction  with the actual class. The results, also measured by Accuracy, are the following: 
 
+``` {r TestingSetError, fig.height=4, fig.width=10}
+CV2 <- c(as.numeric(cm1$overall[1]), as.numeric(cm2$overall[1]), 
+         as.numeric(cm3$overall[1]), as.numeric(cmComb$overall[1]))
+names(CV2) <- c("KNN", "RF", "QDA", "Comb")
+print(list(Accuracy=CV2))
 
+#Chart
+par(mar=c(2, 4, 2, 1), bty="n", mfrow=c(2, 2))
+hist(rsamples$values[[2]], breaks=seq(0.85, 1, len=15), col="red", main="KNN", xlab="Accuracy")
+hist(rsamples$values[[4]], breaks=seq(0.85, 1, len=15), col="blue", main="RF", xlab="Accuracy")
+hist(rsamples$values[[6]], breaks=seq(0.85, 1, len=15), col="gold2", main="QDA", xlab="Accuracy")
+hist(rsamples$values[[8]], breaks=seq(0.85, 1, len=15), col="forestgreen", main="Comb", xlab="Accuracy")
+```
+
+**Fig.1** - Distribution of each model Accuracy computed during the fitting process.  
+
+We can see the Accuracy obtained on the 'Testing Set' is very similar to the mean and median expected Accuracy computed during model fitting. It seems models are not over-fitted to the training data and can 'safely' be used to predict classes on new datasets.  
+<br>
+
+-------------------
+### Models' Results
 
 ```{r SubmissionSet}
 
@@ -246,6 +274,7 @@ pQuiz <- predict(fitComb, quizSet)
 write_files(pQuiz)
 
 pQuiz
+# Quiz Submisison:
 # [1] B A B A A E D B A A B C B A E E A B B B
 # Levels: A B C D E
 ```
