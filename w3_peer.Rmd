@@ -140,7 +140,8 @@ In spite of this potential noise reduction and model simplification, during the 
 
 Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regression) were automatically excluded on our selection process.  
 Most authors agree it doesn't exist a "best model" for all problems and situations, so we cannot be sure about the best _a priori_ model to use for this problem. We then choose to use three different models to see which one is the best for this task: the **K-Nearest Neighborhood (KNN)** used to classify each observation accordingly to the know classifications of the _k_ nearest observations in the features space, the powerful (yet black-box-styled) **Random Forest (RF)** getting its strength from the ensembling techniques applied to the individual decision trees, and, the **Quadratic Discriminant Analysis (QDA)**, a method similar to linear discriminant analysis which tries to find a combination of features able to identify each class, but where each class space is delimited by a quadratic function instead of a linear function.  
-At the end, the outputs of the first two models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here to put these two together. QDA model will be excluded from this phase because it has lower Accuracy and will make the combined model less Accurate than the RF alone.    
+At the end, the outputs of the first two models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here to put these two together. QDA model will be excluded from this phase because it has lower Accuracy and will make the combined model less accurate than the RF model alone.  
+For the remaining of the document, we will use Accuracy, the probability of getting the right outcome, as the measure of model quality.  
 <br>
 
 -------------------
@@ -252,7 +253,7 @@ We can see the Accuracy obtained on the 'Testing Set' and 'Validation Set' is ve
 -------------------
 ### Models' Results
 
-Once we finished with the previous steps and we have our final model we can then preform the last final step: use this final model to predict the 20 quiz cases.  
+Once we finished with the previous steps and we have our final model we can then preform the last final step: use this final model to predict the 20 submission cases.  
 The results are the following:
 
 ```{r SubmissionSet}
@@ -280,8 +281,8 @@ pQuiz
 # Levels: A B C D E
 ```
 
-After submision, it resulted in 20 right predictions out of 20 records to predict. 
-Playing arround with the Poisson distribution, an assuming an average 'miss ratio' of 1.5 pedictions out of every 100 attempts, we can compute a `r ppois(0, 20*1.5/100, lower=TRUE) ` probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts).  
+After submission, it resulted in 20 right predictions out of 20 records to predict. 
+Playing around with the Poisson distribution, an assuming an average 'miss ratio' of 1.5 predictions out of every 100 attempts, we can compute a `r ppois(0, 20*1.5/100, lower=TRUE) ` probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts, given a probability of missing 1.5 classifications in every 100).  
 <br>
 
 -------------------
