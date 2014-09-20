@@ -7,4 +7,5 @@ iterators
 kernlab
 knitr
 lattice
+MASS
 randomForest

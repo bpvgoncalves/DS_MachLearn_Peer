@@ -140,7 +140,7 @@ In spite of this potential noise reduction and model simplification, during the 
 
 Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regression) were automatically excluded on our selection process.  
 Most authors agree it doesn't exist a "best model" for all problems and situations, so we cannot be sure about the best _a priori_ model to use for this problem. We then choose to use three different models to see which one is the best for this task: the **K-Nearest Neighborhood (KNN)** used to classify each observation accordingly to the know classifications of the _k_ nearest observations in the features space, the powerful (yet black-box-styled) **Random Forest (RF)** getting its strength from the ensembling techniques applied to the individual decision trees, and, the **Quadratic Discriminant Analysis (QDA)**, a method similar to linear discriminant analysis which tries to find a combination of features able to identify each class, but where each class space is delimited by a quadratic function instead of a linear function.  
-At the end, the outputs of all three models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here.  
+At the end, the outputs of the first two models will be combined in a fourth model, trying to get the best of each of the initial models. A **Linear Discriminant Analysis (LDA)** model will be used here to put these two together. QDA model will be excluded from this phase because it has lower Accuracy and will make the combined model less Accurate than the RF alone.    
 <br>
 
 -------------------
@@ -199,17 +199,16 @@ cm3 <- confusionMatrix(p3, testSet$classe)
 ```{r ModelCombination, cache=TRUE}
 
 trainSetComb <- data.frame(target=testSet$classe, 
-                           f1=factor(p1), f2=factor(p2), f3=factor(p3))
+                           f1=factor(p1), f2=factor(p2))
 
-fitComb <- train(target~f1+f2+f3,
+fitComb <- train(target~f1+f2,
                  method    = "lda", 
                  data      = trainSetComb, 
                  trControl = trainControl(method="cv", number=16)
                 )
 
 validSetEstim <- data.frame(f1=predict(fit1, validSet),
-                            f2=predict(fit2, validSet),
-                            f3=predict(fit3, validSet))
+                            f2=predict(fit2, validSet))
 pComb <- predict(fitComb, validSetEstim)
 cmComb <- confusionMatrix(pComb, validSet$classe)
 ```
@@ -229,9 +228,9 @@ rsamples <- resamples(list(KNN=fit1, RF=fit2, QDA=fit3, Comb=fitComb))
 summary(rsamples)$statistics$Accuracy
 ```
 
-The second level of cross-validation is preformed using the fitted models to predict the (known) class for the 'Testing Set' records and compare the prediction  with the actual class. The results, also measured by Accuracy, are the following: 
+The second level of cross-validation is preformed using the fitted models to predict the known class for the 'Testing Set' (for KNN, RF and QDA models) records and for the 'Validation Set' (for the Combined model) and compare the prediction  with the actual class. The results, also measured by Accuracy, are the following: 
 
-``` {r TestingSetError, fig.height=4, fig.width=10}
+``` {r TestingSetError, fig.height=5, fig.width=12}
 CV2 <- c(as.numeric(cm1$overall[1]), as.numeric(cm2$overall[1]), 
          as.numeric(cm3$overall[1]), as.numeric(cmComb$overall[1]))
 names(CV2) <- c("KNN", "RF", "QDA", "Comb")
@@ -239,19 +238,22 @@ print(list(Accuracy=CV2))
 
 #Chart
 par(mar=c(2, 4, 2, 1), bty="n", mfrow=c(2, 2))
-hist(rsamples$values[[2]], breaks=seq(0.85, 1, len=15), col="red", main="KNN", xlab="Accuracy")
-hist(rsamples$values[[4]], breaks=seq(0.85, 1, len=15), col="blue", main="RF", xlab="Accuracy")
-hist(rsamples$values[[6]], breaks=seq(0.85, 1, len=15), col="gold2", main="QDA", xlab="Accuracy")
-hist(rsamples$values[[8]], breaks=seq(0.85, 1, len=15), col="forestgreen", main="Comb", xlab="Accuracy")
+hist(rsamples$values[[2]], breaks=seq(0.85, 1, len=16), col="red", main="KNN", xlab="Accuracy")
+hist(rsamples$values[[4]], breaks=seq(0.85, 1, len=16), col="blue", main="RF", xlab="Accuracy")
+hist(rsamples$values[[6]], breaks=seq(0.85, 1, len=16), col="gold2", main="QDA", xlab="Accuracy")
+hist(rsamples$values[[8]], breaks=seq(0.85, 1, len=16), col="forestgreen", main="Comb (KNN+RF)", xlab="Accuracy")
 ```
 
 **Fig.1** - Distribution of each model Accuracy computed during the fitting process.  
 
-We can see the Accuracy obtained on the 'Testing Set' is very similar to the mean and median expected Accuracy computed during model fitting. It seems models are not over-fitted to the training data and can 'safely' be used to predict classes on new datasets.  
+We can see the Accuracy obtained on the 'Testing Set' and 'Validation Set' is very similar to the mean and median expected Accuracy computed during model fitting. It seems models are not over-fitted to the training data and can 'safely' be used to predict classes on new datasets.  
 <br>
 
 -------------------
 ### Models' Results
+
+Once we finished with the previous steps and we have our final model we can then preform the last final step: use this final model to predict the 20 quiz cases.  
+The results are the following:
 
 ```{r SubmissionSet}
 
@@ -268,8 +270,7 @@ write_files <- function(response){
 }
 
 quizSet <- data.frame(f1=predict(fit1, quizClean),
-                      f2=predict(fit2, quizClean),
-                      f3=predict(fit3, quizClean))
+                      f2=predict(fit2, quizClean))
 pQuiz <- predict(fitComb, quizSet)
 write_files(pQuiz)
 
@@ -279,6 +280,8 @@ pQuiz
 # Levels: A B C D E
 ```
 
+After submision, it resulted in 20 right predictions out of 20 records to predict. 
+Playing arround with the Poisson distribution, an assuming an average 'miss ratio' of 1.5 pedictions out of every 100 attempts, we can compute a `r ppois(0, 20*1.5/100, lower=TRUE) ` probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts).  
 <br>
 
 -------------------
