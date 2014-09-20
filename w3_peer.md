@@ -2,21 +2,7 @@
 **Data Science -> Practical Machine Learning -> Peer Assessment**  
 <br><br>  
 
-```{r Setup, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
-# Setup
-startTime <- Sys.time()
-require(knitr)
-require(tools)
-require(caret)
-require(randomForest)
-require(kernlab)
-require(MASS)
-#this will allow parallel processing on model fitting on unix-based OS's.
-if (.Platform$OS.type=="unix") require(doMC) 
-opts_chunk$set(echo=FALSE, results="markup")
-opts_knit$set(verbose=TRUE)
-set.seed(112358) # the single digit numbers of Fibonacci sequence!
-```
+
 
 -------------------
 ### Executive Summary  
@@ -38,99 +24,44 @@ As original authors said (Velloso et al, 2013), this is not the traditional acti
 We will use the data provided by _Qualitative Activity recognition of Weight Lifting Exercices_ team (Velloso et al, 2013), which includes the data collected by sensors worn by 6 different users while preforming weight lifting exercises in a controlled environment, either preforming the activity correctly or making one of four common mistakes. Data is then labeled accordingly as **A** (no execution errors) or **B** to **E** (for each of the execution errors being tested).
 As a first step we will start by downloading the training and submission cases from the given assignment URLs. Once we make sure we have the right files by comparing their MD5 hash with a pre-computed one, they are loaded into memory.
 
-```{r Loading}
-# Loading
-kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
-kFile   <- "data/train.csv"
-kMd5    <- "56926c78af383dcdc2060407942e52e9"
-    
-if (!file.exists(kFile)){
-    # File is not present at the working directory. Lets download it!
-    method <-"auto"  # Default method: shall be fine for MS Windows (untested!)
-    if (.Platform$OS.type=="unix") method <- "curl"  # Use for unix-like systems
-    download.file(kRemote, kFile, method, FALSE, "wb")
-}
-
-if (!file.exists(kFile)){
-    stop("Download failed!")
-} else {
-    # File is now present (it was before or it was sucessfully downloaded).
-    # Lets check if it is the expected file and no curruption ocurred during 
-    # download. I'll compare it's MD5 hash with a precomputed one.
-    if (as.vector(md5sum(kFile))!=kMd5){
-        stop("File is not correct!")
-    } else {
-        # The correct file shall be present. 
-        trainData <- read.csv(kFile, stringsAsFactors=FALSE)
-        #print("Training Data sucessfully loaded!")
-    }
-}
-
-kRemote <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
-kFile   <- "data/test.csv"
-kMd5    <- "bc4174f3ec5dfcc5c570a1d2709272d9"
-
-if (!file.exists(kFile)){
-    method <-"auto"
-    if (.Platform$OS.type=="unix") method <- "curl"
-    download.file(kRemote, kFile, method, FALSE, "wb")
-}
-
-if (!file.exists(kFile)){
-    stop("Download failed!")
-} else {
-    if (as.vector(md5sum(kFile))!=kMd5){
-        stop("File is not correct!")
-    } else {
-        testData <- read.csv(kFile, stringsAsFactors=FALSE)
-        #print("Testing Data sucessfully loaded!")
-    }
-}
-rm(kRemote, kFile, kMd5)
-
-cat("Training data:", dim(trainData), "\nTesting data:", dim(testData))
-
-#Preprocessing
-trainClean <- trainData[, -c(12:36,50:59,69:83,87:101,103:112,125:139,141:150)]
-quizClean <- testData[, -c(12:36,50:59,69:83,87:101,103:112,125:139,141:150)]
-trainClean$classe <- factor(trainClean$classe)
 
 ```
+## Training data: 19622 160 
+## Testing data: 20 160
+```
 
-There are two files with `r dim(trainData)[2]` variables and `r dim(trainData)[1]` records for the training dataset and `r dim(testData)[1]` records for the test cases to be submitted. We'll keep the test cases apart until the prediction phase, later in this document. 
-After some data cleanup to remove columns mostly with empty or NA records, we end up with only `r dim(trainClean)[2]` variables with the previous number of records. Each record belongs to one (and only one) `Classe` named from A to E, with the distribution below.
-```{r ClasseSummary} 
-summary(trainClean$classe)
-rm(trainData, testData)
+There are two files with 160 variables and 19622 records for the training dataset and 20 records for the test cases to be submitted. We'll keep the test cases apart until the prediction phase, later in this document. 
+After some data cleanup to remove columns mostly with empty or NA records, we end up with only 60 variables with the previous number of records. Each record belongs to one (and only one) `Classe` named from A to E, with the distribution below.
+
+```
+##    A    B    C    D    E 
+## 5580 3797 3422 3216 3607
 ```
 
 The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 40% of the samples will be used for training, and 30% for each of testing and validation sets.  
 While this might look sub optimal and not complaint with recommended 60-40 distribution for training and testing, we will use the testing set to fit our third model, so we chose to have more cases there.
 
-```{r DatasetSpliting}
-trn_rows <- createDataPartition(trainClean$classe, p=0.40, list=FALSE)
-trainSet <- trainClean[trn_rows, ]
-tmpSet <- trainClean[-trn_rows, ]
-tst_rows <- createDataPartition(tmpSet$classe, p=0.50, list=FALSE)
-testSet <- tmpSet[tst_rows, ]
-validSet <- tmpSet[-tst_rows, ]
 
-rm(trainClean, tmpSet, trn_rows, tst_rows)
-
-cat("Training set:", dim(trainSet), 
-    "\nTesting set:", dim(testSet),
-    "\nValidation set:", dim(validSet))
-
+```
+## Training set: 7850 60 
+## Testing set: 5887 60 
+## Validation set: 5885 60
 ```
 
 Looking into the variables' names present at the training set it is clear that some of them (X, user.name, raw.timestamp.part.1, ...) are not related to the data collected by the devices and only provide information about the record itself, such as exercise execution time or user name. Excluding those variables (first 7 columns) and the variable we want to predict (last column), leaves us with 52 potential predictor variables. 
 
 We can also wonder if all those are really necessary. Using Principal Component Analysis to extract the main features from the dataset suggests that we can capture about 95% of data variability using 26 components (half the initial number of variables).
 
-``` {r Feature Extraction}
-#Feature Extraction
-prePCA <- preProcess(trainSet[, 8:59], "pca")
-prePCA
+
+```
+## 
+## Call:
+## preProcess.default(x = trainSet[, 8:59], method = "pca")
+## 
+## Created from 7850 samples and 52 variables
+## Pre-processing: principal component signal extraction, scaled, centered 
+## 
+## PCA needed 26 components to capture 95 percent of the variance
 ```
 
 In spite of this potential noise reduction and model simplification, during the exploratory analysis we noticed an important decrease in models' accuracy when using PCA so we will not preform this transformation to the data before fitting the models and we will therefore keep the 52 variables.  
@@ -150,70 +81,10 @@ For the remaining of the document, we will use Accuracy, the probability of gett
 
 It is now time to start the model fitting process.  
 
-```{r ModelFitting, cache=TRUE}
 
 
-if (.Platform$OS.type=="unix") registerDoMC(cores=4)
-
-# Create a random number list to allow reproducibility while using multicore 
-# processing. Since the computations are preformed in parallel and each run 
-# execution time may be affected by external factors, it is not guaranteed the 
-# RNG state will be the same for every script run.
-# We use a vector of seeds to homogenize the results on every run.
-
-set.seed(1321345589) # the double digit numbers of Fibonacci sequence!
-s <- vector(mode = "list", length = 17)
-for(i in 1:16) s[[i]] <- sample.int(9999, 5) # pick 5 numbers from 0 to 9999
-s[[17]] <- sample.int(9999, 1)
-
-fit1 <- train(classe~., 
-              method     = "knn", 
-              data       = trainSet[, 8:60], 
-              preProcess = c("center", "scale"), 
-              trControl  = trainControl(method="cv", number=16, seeds=s),
-              tuneGrid   = data.frame(k=c(1, 3, 5, 7, 9))
-             )
-fit2 <- train(classe~., 
-              method     = "rf", 
-              data       = trainSet[, 8:60], 
-              preProcess = c("center", "scale"), 
-              trControl  = trainControl(method="cv", number=16, seeds=s),
-              ntree      = 64, 
-              tuneGrid   = data.frame(mtry=c(2, 4, 8, 16, 32))
-             )
-fit3 <- train(classe~., 
-              method     = "qda", 
-              data       = trainSet[, 8:60], 
-              preProcess = c("center", "scale"), 
-              trControl  = trainControl(method="cv", number=16)
-             )
-
-p1 <- predict(fit1, testSet)
-p2 <- predict(fit2, testSet)
-p3 <- predict(fit3, testSet)
-
-cm1 <- confusionMatrix(p1, testSet$classe)
-cm2 <- confusionMatrix(p2, testSet$classe)
-cm3 <- confusionMatrix(p3, testSet$classe)
-```
 
 
-```{r ModelCombination, cache=TRUE}
-
-trainSetComb <- data.frame(target=testSet$classe, 
-                           f1=factor(p1), f2=factor(p2))
-
-fitComb <- train(target~f1+f2,
-                 method    = "lda", 
-                 data      = trainSetComb, 
-                 trControl = trainControl(method="cv", number=16)
-                )
-
-validSetEstim <- data.frame(f1=predict(fit1, validSet),
-                            f2=predict(fit2, validSet))
-pComb <- predict(fitComb, validSetEstim)
-cmComb <- confusionMatrix(pComb, validSet$classe)
-```
 
 #### Parameters
 Models were mostly fitted using their default parameters, but some changes were made to try to getting better accuracy or less processing time.
@@ -225,26 +96,25 @@ Traversal to all models, we can find the pre-processing settings. In all cases v
 All models were subject to 2 different levels of cross validation.  
 The first level was computed during the fitting process itself. To accomplish this, 16 different random sub-samples were created from the training dataset, using about 75% of the actual number of records for training and 25% for validation. Then the model were fitted on each of these sub-samples and the Accuracy computed. The summary of the results are on the table below.  
 
-``` {r ModelCompare}
-rsamples <- resamples(list(KNN=fit1, RF=fit2, QDA=fit3, Comb=fitComb))
-summary(rsamples)$statistics$Accuracy
+
+```
+##       Min. 1st Qu. Median  Mean 3rd Qu.  Max. NA's
+## KNN  0.955   0.969  0.972 0.972   0.976 0.986    0
+## RF   0.973   0.985  0.987 0.986   0.990 0.994    0
+## QDA  0.868   0.884  0.896 0.896   0.904 0.919    0
+## Comb 0.978   0.981  0.984 0.985   0.987 0.995    0
 ```
 
 The second level of cross-validation is preformed using the fitted models to predict the known class for the 'Testing Set' (for KNN, RF and QDA models) records and for the 'Validation Set' (for the Combined model) and compare the prediction  with the actual class. The results, also measured by Accuracy, are the following: 
 
-``` {r TestingSetError, fig.height=5, fig.width=12}
-CV2 <- c(as.numeric(cm1$overall[1]), as.numeric(cm2$overall[1]), 
-         as.numeric(cm3$overall[1]), as.numeric(cmComb$overall[1]))
-names(CV2) <- c("KNN", "RF", "QDA", "Comb")
-print(list(Accuracy=CV2))
 
-#Chart
-par(mar=c(2, 4, 2, 1), bty="n", mfrow=c(2, 2))
-hist(rsamples$values[[2]], breaks=seq(0.85, 1, len=16), col="red", main="KNN", xlab="Accuracy")
-hist(rsamples$values[[4]], breaks=seq(0.85, 1, len=16), col="blue", main="RF", xlab="Accuracy")
-hist(rsamples$values[[6]], breaks=seq(0.85, 1, len=16), col="gold2", main="QDA", xlab="Accuracy")
-hist(rsamples$values[[8]], breaks=seq(0.85, 1, len=16), col="forestgreen", main="Comb (KNN+RF)", xlab="Accuracy")
 ```
+## $Accuracy
+##    KNN     RF    QDA   Comb 
+## 0.9774 0.9852 0.8950 0.9883
+```
+
+![plot of chunk TestingSetError](figure/TestingSetError.png) 
 
 **Fig.1** - Distribution of each model Accuracy computed during the fitting process.  
 
@@ -253,11 +123,24 @@ We can see the Accuracy obtained on the 'Testing Set' and 'Validation Set' is ve
 #### Details
 We will now show some details for the final model. First of all we will print a matrix with comparison between the predicted class and the actual class for the 'Validation Set'. We can see most of the observations lie in the matrix diagonal, which means Prediction equals the Reference values.     
 
-```{r FinalModelDetails}
 
-print(cmComb$table)
-t(cmComb$byClass[, -(5:7)])
+```
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1663   14    0    0    0
+##          B    7 1120   10    0    0
+##          C    4    4 1013   16    0
+##          D    0    1    3  947    9
+##          E    0    0    0    1 1073
+```
 
+```
+##                   Class: A Class: B Class: C Class: D Class: E
+## Sensitivity         0.9934   0.9833   0.9873   0.9824   0.9917
+## Specificity         0.9967   0.9964   0.9951   0.9974   0.9998
+## Pos Pred Value      0.9917   0.9850   0.9769   0.9865   0.9991
+## Neg Pred Value      0.9974   0.9960   0.9973   0.9965   0.9981
+## Balanced Accuracy   0.9951   0.9899   0.9912   0.9899   0.9957
 ```
 
 The table above shows some detailed statistics for each class we are trying to predict. It seems the good prediction capabilities are spread across all classes and that is also a signal of model strength.  
@@ -269,33 +152,14 @@ The table above shows some detailed statistics for each class we are trying to p
 Once we finished with the previous steps and we have our final model we can then preform the last final step: use this final model to predict the 20 submission cases.  
 The results are the following:
 
-```{r SubmissionSet}
 
-write_files <- function(response){
-    n = length(response)
-    for(i in 1:n){
-        filename <- paste0("./quizFiles/problem_id_",i,".txt")
-        write.table(response[i], 
-                    file      = filename, 
-                    quote     = FALSE, 
-                    row.names = FALSE, 
-                    col.names = FALSE)
-    }
-}
-
-quizSet <- data.frame(f1=predict(fit1, quizClean),
-                      f2=predict(fit2, quizClean))
-pQuiz <- predict(fitComb, quizSet)
-write_files(pQuiz)
-
-pQuiz
-# Quiz Submisison:
-# [1] B A B A A E D B A A B C B A E E A B B B
-# Levels: A B C D E
+```
+##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E
 ```
 
 After submission, it resulted in 20 right predictions out of 20 records to predict. 
-Playing around with the Poisson distribution, an assuming an average 'miss ratio' of about 1.2 predictions out of every 100 attempts, we can compute a `r (ppois(0, 20*1.2/100, lower=TRUE))*100` percent probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts).  
+Playing around with the Poisson distribution, an assuming an average 'miss ratio' of about 1.2 predictions out of every 100 attempts, we can compute a 78.6628 percent probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts).  
 <br>
 
 -------------------
@@ -319,12 +183,10 @@ This report has been made using R Markdown and the presented results should be f
       - iterators (1.0.7)
       - parallel (3.1.1)
 
-```{r Final}
-endTime <- Sys.time()
-minutes <- difftime(endTime, startTime,units="mins")
-seconds <- (minutes-trunc(minutes))*60
-cat("Report generated on:", format(endTime, "%Y-%m-%d %H:%M:%S %Z"),
-    "\nProcessing time:", trunc(minutes), "minutes and", round(seconds, 0), "seconds.")
+
+```
+## Report generated on: 2014-09-20 17:35:10 CEST 
+## Processing time: 4 minutes and 58 seconds.
 ```
 
 All the code used to produce this report is available on [Github](https://github.com/bpvg/DS_MachLearn_Peer).  

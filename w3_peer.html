@@ -147,18 +147,204 @@ hr {
 <p><strong>Data Science -&gt; Practical Machine Learning -&gt; Peer Assessment</strong><br/>
 <br><br>  </p>
 
-<pre><code>## Loading required package: tools
-</code></pre>
-
 <hr/>
 
 <h3>Executive Summary</h3>
+
+<p>This works tries to solve a classification problem and determine if a given physical activity is being preformed according to the specification or if errors exist.<br/>
+We will fit 4 different models, 3 of them will be single models and the 4th will combine the best two of the initial 3 to try to get the strengths of both. After explaining each of the models and give details on how they were fitted, we will use the final model to predict the 20 submission cases for this assignment.<br/>
+<br></p>
+
+<hr/>
+
+<h3>The problem</h3>
+
+<p>The main purpose of this work is trying to answer the question about the possibility to use data collected by sensors included in user wearable devices to assess whether or not the user is preforming a given physical activity in a correct way or, on the other hand, if the user is preforming it wrongly (with potential negative health impacts, such as lesions).<br/>
+As original authors said (Velloso et al, 2013), this is not the traditional activity recognition work which tries to identify <strong>which</strong> activity the user is preforming, but a more complex analysis trying to identify <strong>how</strong> a given activity is being preformed.<br/>
+<br></p>
+
+<hr/>
+
+<h3>The Data: Loading, Preprocessing and Exploratory Analysis</h3>
+
+<p>We will use the data provided by <em>Qualitative Activity recognition of Weight Lifting Exercices</em> team (Velloso et al, 2013), which includes the data collected by sensors worn by 6 different users while preforming weight lifting exercises in a controlled environment, either preforming the activity correctly or making one of four common mistakes. Data is then labeled accordingly as <strong>A</strong> (no execution errors) or <strong>B</strong> to <strong>E</strong> (for each of the execution errors being tested).
+As a first step we will start by downloading the training and submission cases from the given assignment URLs. Once we make sure we have the right files by comparing their MD5 hash with a pre-computed one, they are loaded into memory.</p>
+
+<pre><code>## Training data: 19622 160 
+## Testing data: 20 160
+</code></pre>
+
+<p>There are two files with 160 variables and 19622 records for the training dataset and 20 records for the test cases to be submitted. We&#39;ll keep the test cases apart until the prediction phase, later in this document. 
+After some data cleanup to remove columns mostly with empty or NA records, we end up with only 60 variables with the previous number of records. Each record belongs to one (and only one) <code>Classe</code> named from A to E, with the distribution below.</p>
+
+<pre><code>##    A    B    C    D    E 
+## 5580 3797 3422 3216 3607
+</code></pre>
+
+<p>The next step is split the training dataset into 3 different sets: one for model training, another for model testing and a last one for model validation. About 40% of the samples will be used for training, and 30% for each of testing and validation sets.<br/>
+While this might look sub optimal and not complaint with recommended 60-40 distribution for training and testing, we will use the testing set to fit our third model, so we chose to have more cases there.</p>
+
+<pre><code>## Training set: 7850 60 
+## Testing set: 5887 60 
+## Validation set: 5885 60
+</code></pre>
+
+<p>Looking into the variables&#39; names present at the training set it is clear that some of them (X, user.name, raw.timestamp.part.1, &hellip;) are not related to the data collected by the devices and only provide information about the record itself, such as exercise execution time or user name. Excluding those variables (first 7 columns) and the variable we want to predict (last column), leaves us with 52 potential predictor variables. </p>
+
+<p>We can also wonder if all those are really necessary. Using Principal Component Analysis to extract the main features from the dataset suggests that we can capture about 95% of data variability using 26 components (half the initial number of variables).</p>
+
+<pre><code>## 
+## Call:
+## preProcess.default(x = trainSet[, 8:59], method = &quot;pca&quot;)
+## 
+## Created from 7850 samples and 52 variables
+## Pre-processing: principal component signal extraction, scaled, centered 
+## 
+## PCA needed 26 components to capture 95 percent of the variance
+</code></pre>
+
+<p>In spite of this potential noise reduction and model simplification, during the exploratory analysis we noticed an important decrease in models&#39; accuracy when using PCA so we will not preform this transformation to the data before fitting the models and we will therefore keep the 52 variables.<br/>
+<br></p>
+
+<hr/>
+
+<h3>Model Selection</h3>
+
+<p>Given the nature of the problem being addressed: correctly classifying the record within one of five different classes, some models not suited for classification (eg, linear regression) were automatically excluded on our selection process.<br/>
+Most authors agree it doesn&#39;t exist a &ldquo;best model&rdquo; for all problems and situations, so we cannot be sure about the best <em>a priori</em> model to use for this problem. We then choose to use three different models to see which one is the best for this task: the <strong>K-Nearest Neighborhood (KNN)</strong> used to classify each observation accordingly to the know classifications of the <em>k</em> nearest observations in the features space, the powerful (yet black-box-styled) <strong>Random Forest (RF)</strong> getting its strength from the ensembling techniques applied to the individual decision trees, and, the <strong>Quadratic Discriminant Analysis (QDA)</strong>, a method similar to linear discriminant analysis which tries to find a combination of features able to identify each class, but where each class space is delimited by a quadratic function instead of a linear function.<br/>
+At the end, the outputs of the first two models will be combined in a fourth model, trying to get the best of each of the initial models. A <strong>Linear Discriminant Analysis (LDA)</strong> model will be used here to put these two together. QDA model will be excluded from this phase because it has lower Accuracy and will make the combined model less accurate than the RF model alone.<br/>
+For the remaining of the document, we will use Accuracy, the probability of getting the right outcome, as the measure of model quality.<br/>
+<br></p>
+
+<hr/>
+
+<h3>Models Fitting</h3>
+
+<p>It is now time to start the model fitting process.  </p>
+
+<h4>Parameters</h4>
+
+<p>Models were mostly fitted using their default parameters, but some changes were made to try to getting better accuracy or less processing time.
+Starting with KNN, we tuned the model to check more k neighbors than it will do by default to try to get more Accuracy. In this case, k=1 and k=3 were tested together with the default 5, 7 and 9. According to the results obtained, k=1 provides better Accuracy.<br/>
+As long as the RF is concerned, we reduced the number of trees from the default 500 to 64. This grants faster processing but does not penalize too much the Accuracy. According to our findings during the exploratory phase, marginal Accuracy gains quickly decrease while more trees are added. We found 64 as a good compromise between models Accuracy and processing speed. We also changed the number of variables samples evaluated at each node, checking for 2, 4, 8, 16 and 32 variables instead of the original 2, 27 and 52.<br/>
+Traversal to all models, we can find the pre-processing settings. In all cases variables were centered and scaled.  </p>
+
+<h4>Cross-Validation</h4>
+
+<p>All models were subject to 2 different levels of cross validation.<br/>
+The first level was computed during the fitting process itself. To accomplish this, 16 different random sub-samples were created from the training dataset, using about 75% of the actual number of records for training and 25% for validation. Then the model were fitted on each of these sub-samples and the Accuracy computed. The summary of the results are on the table below.  </p>
+
+<pre><code>##       Min. 1st Qu. Median  Mean 3rd Qu.  Max. NA&#39;s
+## KNN  0.955   0.969  0.972 0.972   0.976 0.986    0
+## RF   0.973   0.985  0.987 0.986   0.990 0.994    0
+## QDA  0.868   0.884  0.896 0.896   0.904 0.919    0
+## Comb 0.978   0.981  0.984 0.985   0.987 0.995    0
+</code></pre>
+
+<p>The second level of cross-validation is preformed using the fitted models to predict the known class for the &#39;Testing Set&#39; (for KNN, RF and QDA models) records and for the &#39;Validation Set&#39; (for the Combined model) and compare the prediction  with the actual class. The results, also measured by Accuracy, are the following: </p>
+
+<pre><code>## $Accuracy
+##    KNN     RF    QDA   Comb 
+## 0.9774 0.9852 0.8950 0.9883
+</code></pre>
+
+<p><img src="data:image/png;base64,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" alt="plot of chunk TestingSetError"/> </p>
+
+<p><strong>Fig.1</strong> - Distribution of each model Accuracy computed during the fitting process.  </p>
+
+<p>We can see the Accuracy obtained on the &#39;Testing Set&#39; and &#39;Validation Set&#39; is very similar to the mean and median expected Accuracy computed during model fitting. It seems models are not over-fitted to the training data and can &#39;safely&#39; be used to predict classes on new datasets.  </p>
+
+<h4>Details</h4>
+
+<p>We will now show some details for the final model. First of all we will print a matrix with comparison between the predicted class and the actual class for the &#39;Validation Set&#39;. We can see most of the observations lie in the matrix diagonal, which means Prediction equals the Reference values.     </p>
+
+<pre><code>##           Reference
+## Prediction    A    B    C    D    E
+##          A 1663   14    0    0    0
+##          B    7 1120   10    0    0
+##          C    4    4 1013   16    0
+##          D    0    1    3  947    9
+##          E    0    0    0    1 1073
+</code></pre>
+
+<pre><code>##                   Class: A Class: B Class: C Class: D Class: E
+## Sensitivity         0.9934   0.9833   0.9873   0.9824   0.9917
+## Specificity         0.9967   0.9964   0.9951   0.9974   0.9998
+## Pos Pred Value      0.9917   0.9850   0.9769   0.9865   0.9991
+## Neg Pred Value      0.9974   0.9960   0.9973   0.9965   0.9981
+## Balanced Accuracy   0.9951   0.9899   0.9912   0.9899   0.9957
+</code></pre>
+
+<p>The table above shows some detailed statistics for each class we are trying to predict. It seems the good prediction capabilities are spread across all classes and that is also a signal of model strength.<br/>
+<br></p>
+
+<hr/>
+
+<h3>Models&#39; Results</h3>
+
+<p>Once we finished with the previous steps and we have our final model we can then preform the last final step: use this final model to predict the 20 submission cases.<br/>
+The results are the following:</p>
+
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E
+</code></pre>
+
+<p>After submission, it resulted in 20 right predictions out of 20 records to predict. 
+Playing around with the Poisson distribution, an assuming an average &#39;miss ratio&#39; of about 1.2 predictions out of every 100 attempts, we can compute a 78.6628 percent probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts).<br/>
+<br></p>
+
+<hr/>
+
+<h3>Reproducibility</h3>
+
+<p>This report has been made using R Markdown and the presented results should be fully reproducible. The following software environment has been used: </p>
+
+<ul>
+<li>OS: Linux x86_64 (3.15.9-pclos1)</li>
+<li>R: 3.1.1</li>
+<li>RStudio: 0.98.481</li>
+<li>R packages: 
+
+<ul>
+<li>knitr (1.6)</li>
+<li>tools (3.1.1)</li>
+<li>caret (6.0-35):
+
+<ul>
+<li>lattice(0.20-29)</li>
+<li>ggplot2 (1.0.0)</li>
+<li>kernlab (0.9-19)</li>
+<li>randomForest (4.6-10)</li>
+<li>MASS (7.3-33)</li>
+</ul></li>
+<li>doMC (1.3.3):
+
+<ul>
+<li>foreach (1.4.2)</li>
+<li>iterators (1.0.7)</li>
+<li>parallel (3.1.1)</li>
+</ul></li>
+</ul></li>
+</ul>
+
+<pre><code>## Report generated on: 2014-09-20 17:35:10 CEST 
+## Processing time: 4 minutes and 58 seconds.
+</code></pre>
+
+<p>All the code used to produce this report is available on <a href="https://github.com/bpvg/DS_MachLearn_Peer">Github</a>.<br/>
+<br></p>
 
 <hr/>
 
 <h3>References</h3>
 
-<p>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. <em>Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human &#39;13)</em> . Stuttgart, Germany: ACM SIGCHI, 2013.</p>
+<p>Filzmoser, Peter <em>Linear and Nonlinear Methods for Regression and Classification and applications in R</em>. Vienna University of Technology, 2008  </p>
+
+<p>Hastie, Trevor; Tibshirani, Robert; Friedman, Jerome <em>The Elements of Statistical Learning</em>. Springer, 2008  </p>
+
+<p>Shalizi, Cosma R. <em>Advanced Data Analysis from an Elementary Point of View</em>. Carnegie Mellon University, 2013  </p>
+
+<p>Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. <em>Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human &#39;13)</em> . Stuttgart, Germany: ACM SIGCHI, 2013.  </p>
 
 </body>
 
