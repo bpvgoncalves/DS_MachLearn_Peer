@@ -21,7 +21,8 @@ set.seed(112358) # the single digit numbers of Fibonacci sequence!
 -------------------
 ### Executive Summary  
 
-Executive summary goes here!  
+This works tries to solve a classification problem and determine if a given physical activity is being preformed according to the specification or if errors exist.  
+We will fit 4 different models, 3 of them will be single models and the 4th will combine the best two of the initial 3 to try to get the strengths of both. After explaining each of the models and give details on how they were fitted, we will use the final model to predict the 20 submission cases for this assignment.    
 <br>
 
 -------------------
@@ -282,7 +283,7 @@ pQuiz
 ```
 
 After submission, it resulted in 20 right predictions out of 20 records to predict. 
-Playing around with the Poisson distribution, an assuming an average 'miss ratio' of 1.5 predictions out of every 100 attempts, we can compute a `r ppois(0, 20*1.5/100, lower=TRUE) ` probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts, given a probability of missing 1.5 classifications in every 100).  
+Playing around with the Poisson distribution, an assuming an average 'miss ratio' of 1.5 predictions out of every 100 attempts, we can compute a `r (ppois(0, 20*1.5/100, lower=TRUE))*100` percent probability of the 20/20 performance achieved (ie, 0 misses in 20 attempts, given a probability of missing 1.5 classifications in every 100).  
 <br>
 
 -------------------
